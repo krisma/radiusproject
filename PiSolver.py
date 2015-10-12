@@ -1,12 +1,16 @@
+# PiSolver class, co-authored by Yuxuan Luo, Weijian Ma, Ge Wu
+# Predicts the NAICS code according to given business information
+#
+# All rights reserved.
+
 import requests
 from HTMLParser import HTMLParser
-from htmlentitydefs import name2codepoint
 
-# first commit
+
+
 
 class PiSolver(object):
 	def __init__(self):
-		# self.dataSetUrl = dataSetUrl
 		self.httpGetter = HttpGetter()
 		self.htmlParser = MyHTMLParser()
 
@@ -14,9 +18,13 @@ class PiSolver(object):
 	def __setup__(self, labelingDict):
 		pass
 	def parseWebsite(self, url):
+		# url: link to website with protocol type
+		# return: content on the website parsed in text
 		self.httpGetter.request(url)
 		self.htmlParser.feed(self.httpGetter.getLastRequestContent())
-
+		rtn = self.htmlParser.result
+		self.htmlParser.reset_result()
+		return rtn
 
 class HttpGetter(object):
 	def __init__(self, 
@@ -35,15 +43,20 @@ class HttpGetter(object):
 	def getLastRequestContent(self):
 		return self.lastRequest.content
 
-
-
 class MyHTMLParser(HTMLParser):
 	def __init__(self):
 		HTMLParser.__init__(self)
 		self.lastTag = ''
+		self.result = ''
 	def handle_starttag(self, tag, attrs):
 		self.lastTag = tag
 	def handle_data(self, data):
 		if not self.lastTag in ['style', 'meta', 'script']:
-			print data
+			self.result += ' ' + data
+	def reset_result(self):
+		self.lastTag = ''
+		self.result = ''
 
+# TESTING
+# p = PiSolver()
+# p.parseWebsite("http://www.baidu.com")
