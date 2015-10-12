@@ -41,10 +41,10 @@ def group_by_first(pairs):
     for key, _ in pairs:
         if key not in keys:
             keys.append(key)
-    keys = sc.parallelize(keys)
-    # return [[y for x, y in pairs if x == key] for key in keys]
-    result = keys.map(lambda key: [y for x, y in pairs if x == key])
-    return result
+    return [[y for x, y in pairs if x == key] for key in keys]
+    # keys = sc.parallelize(keys)
+    # result = keys.map(lambda key: [y for x, y in pairs if x == key])
+    # return result
 
 def group_by_centroid(companies, centroids):
     """Return a list of clusters, where each cluster contains all restaurants
@@ -53,7 +53,7 @@ def group_by_centroid(companies, centroids):
     restaurants closest to the same centroid.
     """
     # companies_centroids=[[find_closest(c,centroids), c] for c in companies]
-    centroids = centroids.collect()
+    # centroids = centroids.collect()
     result = companies.map(lambda c: [find_closest(c,centroids), c])
     # result = result.groupByKey()
     # result = result.map(lambda x: x[1])
@@ -79,20 +79,21 @@ def find_centroid(cluster):
     	rtn[elem[0]] = elem[1]
     return rtn
 
-def k_means(companies, max_updates=5):
+def k_means(companies, max_updates=1):
     """Use k-means to group restaurants by location into k clusters."""
     assert companies.count() >= NumOfClusters, 'Not enough restaurants to cluster'
     old_centroids, n = [], 0
     # Select initial centroids randomly by choosing k different restaurants
-    sample = sc.parallelize(companies.takeSample(True, NumOfClusters))
-    # centroids = [c.coordinate() for c in sample]
-    centroids = sample.map(lambda company: company.coordinate())
+    # sample = sc.parallelize(companies.takeSample(True, NumOfClusters))
+    sample = companies.takeSample(True, NumOfClusters)
+    centroids = [s.coordinate() for s in sample]
+    # centroids = sample.map(lambda company: company.coordinate())
 
     while old_centroids != centroids and n < max_updates:
         old_centroids = centroids
         clusters = group_by_centroid(companies, old_centroids)
-        # centroids = [find_centroid(cluster) for cluster in clusters]
-        centroids = clusters.map(lambda cluster: find_centroid(cluster))
+        centroids = [find_centroid(cluster) for cluster in clusters]
+        # centroids = clusters.map(lambda cluster: find_centroid(cluster))
         n += 1
     return centroids
 
@@ -122,16 +123,15 @@ def main(*args):
 		# l = [key for key in c]
 		# print('centroid is: ' + repr(l) + '\n')
 
-    data = sc.parallelize(data)
-    companies = data.map(lambda j: Company(j, exclusion))
+    companies = sc.parallelize(data).map(lambda j: Company(j, exclusion))
 
     start = time()
-    centroids = k_means(companies).collect()
+    centroids = k_means(companies)
     end = time()
     print 'total time taken = ' + repr(end - start)
     for centroid in centroids:
         print [key for key in centroid]
-
+        print '\n'
 
 
 if __name__ == "__main__":
