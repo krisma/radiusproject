@@ -6,18 +6,16 @@ import sys
 
 sc = SparkContext(appName="myApp")
 
-l = []
-for i in range(2**22):
-	l.append(i)
+l = range(2**25)
 
+# t0 = time()
+t0 = time()
 data = sc.parallelize(l)
+data.map(lambda x: x * 2).map(lambda x: x * 2).map(lambda x: x * 2)
+t1 = time()
+print 'spark time taken = ' + repr(t1-t0)
 
 t0 = time()
-data.map(lambda x: x * 2)
+map(lambda x: x * 2, map(lambda x: x * 2, map(lambda x: x * 2, l)))
 t1 = time()
-print 'time taken = ' + repr(t1-t0) + '\n'
-
-t0 = time()
-map(lambda x: x * 2, l)
-t1 = time()
-print 'time taken = ' + repr(t1-t0) + '\n'
+print 'normal time taken = ' + repr(t1-t0)

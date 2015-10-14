@@ -1,4 +1,4 @@
-import json
+import json, csv
 from abstractions import Company
 from utils import *
 from random import sample
@@ -41,10 +41,10 @@ def group_by_first(pairs):
     for key, _ in pairs:
         if key not in keys:
             keys.append(key)
-    keys = sc.parallelize(keys)
-    # return [[y for x, y in pairs if x == key] for key in keys]
-    result = keys.map(lambda key: [y for x, y in pairs if x == key])
-    return result
+    return [sc.parallelize([y for x, y in pairs if x == key]) for key in keys]
+    # keys = sc.parallelize(keys)
+    # result = keys.map(lambda key: [y for x, y in pairs if x == key])
+    # return result
 
 def group_by_centroid(companies, centroids):
     """Return a list of clusters, where each cluster contains all restaurants
@@ -53,7 +53,7 @@ def group_by_centroid(companies, centroids):
     restaurants closest to the same centroid.
     """
     # companies_centroids=[[find_closest(c,centroids), c] for c in companies]
-    centroids = centroids.collect()
+    # centroids = centroids.collect()
     result = companies.map(lambda c: [find_closest(c,centroids), c])
     # result = result.groupByKey()
     # result = result.map(lambda x: x[1])
@@ -64,11 +64,13 @@ def group_by_centroid(companies, centroids):
 
 def find_centroid(cluster):
     """Return the centroid of the locations of the companies in cluster."""
-    size = float(len(cluster))
-    temp = [company.coordinate() for company in cluster]
-    rtn = dict()
-    for coordinate in temp:
-    	merge(rtn, coordinate)
+    # size = float(len(cluster))
+    size = float(cluster.count())
+    # temp = [company.coordinate() for company in cluster]
+    rtn = cluster.map(lambda company: company.coordinate()).reduce(lambda c1, c2: merge(c1, c2))
+    # rtn = dict()
+    # for coordinate in temp:
+    # 	merge(rtn, coordinate)
     for key in rtn:
     	rtn[key] /= size
     l = [[key, rtn[key]] for key in rtn]
@@ -79,26 +81,26 @@ def find_centroid(cluster):
     	rtn[elem[0]] = elem[1]
     return rtn
 
-def k_means(companies, max_updates=5):
+def k_means(companies, max_updates=10):
     """Use k-means to group restaurants by location into k clusters."""
     assert companies.count() >= NumOfClusters, 'Not enough restaurants to cluster'
     old_centroids, n = [], 0
     # Select initial centroids randomly by choosing k different restaurants
-    sample = sc.parallelize(companies.takeSample(True, NumOfClusters))
-    # centroids = [c.coordinate() for c in sample]
-    centroids = sample.map(lambda company: company.coordinate())
+    # sample = sc.parallelize(companies.takeSample(True, NumOfClusters))
+    sample = companies.takeSample(True, NumOfClusters)
+    centroids = [s.coordinate() for s in sample]
+    # centroids = sample.map(lambda company: company.coordinate())
 
     while old_centroids != centroids and n < max_updates:
         old_centroids = centroids
         clusters = group_by_centroid(companies, old_centroids)
-        # centroids = [find_centroid(cluster) for cluster in clusters]
-        centroids = clusters.map(lambda cluster: find_centroid(cluster))
+        centroids = [find_centroid(cluster) for cluster in clusters]
+        # centroids = clusters.map(lambda cluster: find_centroid(cluster))
         n += 1
-    return centroids
+    return [centroids, clusters]
 
 
 
-# @main
 def main(*args):
     data = json.load(open('challenge_set.json'))
     # wordStats = stats(companies)
@@ -122,15 +124,21 @@ def main(*args):
 		# l = [key for key in c]
 		# print('centroid is: ' + repr(l) + '\n')
 
-    data = sc.parallelize(data)
-    companies = data.map(lambda j: Company(j, exclusion))
+    companies = sc.parallelize(data).map(lambda j: Company(j, exclusion))
 
     start = time()
-    centroids = k_means(companies).collect()
+    centroids, clusters = k_means(companies)
     end = time()
     print 'total time taken = ' + repr(end - start)
-    for centroid in centroids:
-        print [key for key in centroid]
+
+    csvfile = open('result.csv', 'wb')
+    writer = csv.writer(csvfile, quotechar=' ', delimiter='|',  escapechar=' ', quoting=csv.QUOTE_NONE)
+    for i in range(len(clusters)):
+        centroid, cluster = centroids[i], clusters[i].collect()
+        writer.writerow([key for key in centroid])
+        for company in cluster:
+            writer.writerow([company.name])
+        writer.writerow(['End of cluster result.', '\n'])
 
 
 
